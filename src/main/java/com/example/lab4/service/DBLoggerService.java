@@ -1,15 +1,23 @@
 package com.example.lab4.service;
 
+import com.example.lab4.config.JmsConfig;
+import com.example.lab4.dto.MessagePOJO;
 import com.example.lab4.model.*;
 import com.example.lab4.repository.AuditRepository;
 import com.example.lab4.repository.BookAuditRepository;
 import com.example.lab4.repository.ClientAuditRepository;
 import com.example.lab4.repository.PurchaseAuditRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jms.annotation.JmsListener;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.handler.annotation.Headers;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
+import javax.jms.JMSException;
+import javax.jms.Message;
+import java.text.ParseException;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -20,6 +28,21 @@ public class DBLoggerService {
     private final BookAuditRepository bookAuditRepository;
     private final ClientAuditRepository clientAuditRepository;
     private final PurchaseAuditRepository purchaseAuditRepository;
+    private final JMSParserService jmsParserService;
+
+    @JmsListener(destination = JmsConfig.CHANGE_TOPIC)
+    public void listen(@Payload Map<String, String> payload, @Headers MessageHeaders messageHeaders,
+                       Message message) throws JMSException, ParseException {
+
+        MessagePOJO parsedMessage = jmsParserService.parse(payload, messageHeaders, message);
+        String eventType = parsedMessage.getEventType();
+
+        switch (eventType) {
+            case "Create" -> logCreateEvent(parsedMessage.getObject1(), parsedMessage.getTable(), parsedMessage.getDate());
+            case "Delete" -> logDeleteEvent(parsedMessage.getObject1(), parsedMessage.getTable(), parsedMessage.getDate());
+            case "Update" -> logUpdateEvent(parsedMessage.getObject1(), parsedMessage.getObject2(), parsedMessage.getTable(), parsedMessage.getDate());
+        }
+    }
 
     public void logCreateEvent(Map<String, String> object, String table, Date date){
         switch (table) {
@@ -55,8 +78,6 @@ public class DBLoggerService {
                 bookOld.getGenre(), bookNew.getGenre(),
                 bookOld.getPrice(), bookNew.getPrice());
 
-
-
         bookAudit = bookAuditRepository.save(bookAudit);
 
         //add eventType
@@ -77,7 +98,6 @@ public class DBLoggerService {
 
         DBChange dbChange = new DBChange("client", clientAudit.getId(), eventType, new java.sql.Date(date.getTime()));
         auditRepository.saveAndFlush(dbChange);
-
     }
 
     private void logPurchaseChange(Map<String, String> objectNew, Map<String, String> objectOld, String eventType, Date date){

@@ -1,10 +1,8 @@
 package com.example.lab4.service;
 
 import com.example.lab4.config.JmsConfig;
-import com.example.lab4.model.Book;
-import com.example.lab4.model.Client;
 import com.example.lab4.model.Mappable;
-import com.example.lab4.model.Purchase;
+import lombok.SneakyThrows;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.jms.JMSException;
 import javax.jms.Message;
+import javax.jms.Topic;
 
 @Service
 public class AuditService {
@@ -22,15 +21,18 @@ public class AuditService {
     public static String EVENT_CREATE = "Create";
     public static String EVENT_UPDATE = "Update";
     public static String EVENT_DELETE = "Delete";
+    private final JmsTemplate jmsTemplate;
 
     public AuditService(JmsTemplate jmsTemplate) {
         this.jmsTemplate = jmsTemplate;
     }
 
+    @SneakyThrows
     public void log(Mappable object, String table, String eventType) {
-        jmsTemplate.convertAndSend(
-                JmsConfig.DB_CHANGE_QUEUE, object.toMap(), message -> setHeaders(message, table, eventType)
-        );
+        Topic springTopic = jmsTemplate.getConnectionFactory().createConnection()
+                .createSession().createTopic(JmsConfig.CHANGE_TOPIC);
+
+        jmsTemplate.convertAndSend(springTopic, object.toMap(), message -> setHeaders(message, table, eventType));
     }
 
     public void log(Mappable objectOld, Mappable objectNew, String table, String eventType) {

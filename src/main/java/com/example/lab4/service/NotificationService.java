@@ -1,7 +1,16 @@
 package com.example.lab4.service;
 
+import com.example.lab4.config.JmsConfig;
+import com.example.lab4.dto.MessagePOJO;
+import org.springframework.jms.annotation.JmsListener;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.handler.annotation.Headers;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
+import javax.jms.JMSException;
+import javax.jms.Message;
+import java.text.ParseException;
 import java.util.Date;
 import java.util.Map;
 
@@ -9,9 +18,25 @@ import java.util.Map;
 public class NotificationService {
 
     final private EmailService emailService;
+    final private JMSParserService jmsParserService;
 
-    public NotificationService(EmailService emailService) {
+    public NotificationService(EmailService emailService, JMSParserService jmsParserService) {
         this.emailService = emailService;
+        this.jmsParserService = jmsParserService;
+    }
+
+    @JmsListener(destination = JmsConfig.CHANGE_TOPIC)
+    public void listen(@Payload Map<String, String> payload, @Headers MessageHeaders messageHeaders,
+                       Message message) throws JMSException, ParseException {
+
+        MessagePOJO parsedMessage = jmsParserService.parse(payload, messageHeaders, message);
+        String eventType = parsedMessage.getEventType();
+
+        switch (eventType) {
+            case "Create" -> sendCreateNotification(parsedMessage.getObject1(), parsedMessage.getTable(), parsedMessage.getDate());
+            case "Delete" -> sendDeleteNotification(parsedMessage.getObject1(), parsedMessage.getTable(), parsedMessage.getDate());
+            case "Update" -> sendUpdateNotification(parsedMessage.getObject1(), parsedMessage.getObject2(), parsedMessage.getTable(), parsedMessage.getDate());
+        }
     }
 
     public void sendCreateNotification(Map<String, String> object, String table, Date date) {

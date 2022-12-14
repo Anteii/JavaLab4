@@ -1,9 +1,7 @@
 package com.example.lab4.service;
 
 
-import com.example.lab4.model.Client;
 import com.example.lab4.model.Purchase;
-import com.example.lab4.repository.ClientRepository;
 import com.example.lab4.repository.PurchaseRepository;
 import org.springframework.stereotype.Service;
 
